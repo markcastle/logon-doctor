@@ -380,8 +380,13 @@ fn findings(r: &mut Report, recent: &[&Logon]) {
                      it is either waiting on another service/component it notifies about the profile load, or working through files itself.",
                     slow, n, fmt_ms(h), fmt_ms(last.saturating_sub(h))
                 ),
-                "Capture the next sign-in live: run 'logon-doctor.exe --capture' from an elevated prompt, sign out, sign back in, then run logon-doctor.exe again. \
-                 It records what the profile service is waiting on, second by second, and shows the result in this report.".to_string(),
+                if r.have_capture {
+                    "A live capture has already been taken: read the 'Live capture of a sign-in' section below. It shows whether the profile service was waiting or computing, \
+                     and which DLLs were on its busy thread. The 'Registry census' section shows where the registry it works through is bloated."
+                } else {
+                    "Capture the next sign-in live: run 'logon-doctor.exe --capture' from an elevated prompt, sign out, sign back in, then run logon-doctor.exe again. \
+                     It records what the profile service is waiting on or computing, second by second, and shows the result in this report."
+                }.to_string(),
             ),
             _ => (
                 format!(

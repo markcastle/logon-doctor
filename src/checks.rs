@@ -319,6 +319,106 @@ pub fn profile(r: &mut Report, t: &Target, user_root: Option<&RegKey>) {
     }
 }
 
+/// Counts keys in the user's registry and finds where they pile up.
+///
+/// A profile service that spends minutes on the CPU with no disk activity is almost certainly
+/// walking registry data, and what makes that slow is not the hive's size in megabytes but one
+/// key with tens of thousands of children that some app or Windows component has leaked.
+pub fn registry_census(r: &mut Report, t: &Target) {
+    r.section("Registry census (where the user's registry is bloated)");
+    struct Census {
+        keys: u64,
+        values: u64,
+        fat: Vec<(u64, u64, String)>, // (direct subkeys, direct values, path)
+        branches: std::collections::HashMap<String, u64>,
+        deadline: Instant,
+        complete: bool,
+    }
+    fn walk(k: &RegKey, path: &str, depth: usize, c: &mut Census) {
+        if Instant::now() > c.deadline {
+            c.complete = false;
+            return;
+        }
+        let Ok(info) = k.query_info() else { return };
+        c.keys += 1;
+        c.values += info.values as u64;
+        if info.sub_keys as u64 + info.values as u64 >= 400 {
+            c.fat.push((info.sub_keys as u64, info.values as u64, path.to_string()));
+        }
+        // Attribute every key to its branch three levels down, e.g. Software\Microsoft\Windows.
+        let branch: String = path.split('\\').take(4).collect::<Vec<_>>().join("\\");
+        *c.branches.entry(branch).or_default() += 1;
+        if depth >= 48 || info.sub_keys == 0 {
+            return;
+        }
+        for name in k.enum_keys().flatten() {
+            if let Ok(child) = k.open_subkey(&name) {
+                walk(&child, &format!("{}\\{}", path, name), depth + 1, c);
+            }
+        }
+    }
+
+    let mut c = Census {
+        keys: 0,
+        values: 0,
+        fat: Vec::new(),
+        branches: std::collections::HashMap::new(),
+        deadline: Instant::now() + Duration::from_secs(90),
+        complete: true,
+    };
+    let hku = RegKey::predef(HKEY_USERS);
+    let mut any = false;
+    // The two hives loaded at sign-in: NTUSER.DAT and UsrClass.dat.
+    for (label, sub) in [("HKCU", t.sid.clone()), ("HKCU-Classes", format!("{}_Classes", t.sid))] {
+        if let Ok(root) = hku.open_subkey(&sub) {
+            any = true;
+            walk(&root, label, 0, &mut c);
+        }
+    }
+    if !any {
+        r.line("The user's registry is not loaded (user not signed in), so it could not be examined.");
+        return;
+    }
+    r.line(format!(
+        "{} keys and {} values{}",
+        c.keys,
+        c.values,
+        if c.complete { "" } else { " (scan cut short after 90 s - at least this many)" }
+    ));
+
+    let mut branches: Vec<_> = c.branches.into_iter().collect();
+    branches.sort_by(|a, b| b.1.cmp(&a.1));
+    r.line("Largest branches by number of keys:");
+    for (b, n) in branches.iter().take(10) {
+        r.line(format!("  {:>8}  {}", n, b));
+    }
+
+    c.fat.sort_by(|a, b| (b.0 + b.1).cmp(&(a.0 + a.1)));
+    if c.fat.is_empty() {
+        r.line("No single key has an unusual number of entries.");
+        return;
+    }
+    r.line("Keys with the most direct entries (subkeys / values):");
+    for (subs, vals, path) in c.fat.iter().take(15) {
+        r.line(format!("  {:>7} / {:<7} {}", subs, vals, path));
+    }
+    if let Some((subs, vals, path)) = c.fat.first() {
+        let total = subs + vals;
+        if total >= 5000 {
+            r.find(
+                if total >= 20_000 { Sev::High } else { Sev::Medium },
+                format!("Registry bloat: one key holds {} entries", total),
+                format!(
+                    "'{}' has {} subkeys and {} values. A healthy key has a few dozen. Anything that enumerates this key at sign-in - including components the profile service notifies - \
+                     slows down in proportion, and it does so on the CPU with no disk activity, which is the pattern a live capture shows when this is the cause.",
+                    path, subs, vals
+                ),
+                "Do not delete it blindly. Identify which program owns the key from its path, then look up the documented cleanup for that program; export the key in regedit first so it can be restored.",
+            );
+        }
+    }
+}
+
 /// Things around the profile service itself: who it notifies, and signs of profile damage.
 pub fn profile_service(r: &mut Report) {
     r.section("Profile service environment");

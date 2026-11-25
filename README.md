@@ -87,6 +87,7 @@ Below the table you get a breakdown of the latest sign-in and a list of the **bi
 | 🌐 Network paths | Dead or slow mapped drives, redirected folders and home shares, each probed with a timeout |
 | 🚀 Startup load | Run keys, Startup folders, logon-triggered scheduled tasks, and whether Task Manager has them disabled |
 | ⚙️ Settings | Policies that force sign-in to wait for the network or for scripts, a modified `Userinit`, disabled services the profile service depends on |
+| 🗂️ Registry | A census of the user's registry: the largest branches and any key with thousands of entries |
 | 🧱 Known bugs | The Windows 10 firewall-rule build-up, leftover `TEMP.*` profile folders |
 | 📋 Windows' own records | Profile, Winlogon, Group Policy and Netlogon errors, plus the boot diagnostics that name slow apps, drivers and services |
 
@@ -100,8 +101,9 @@ Sometimes the logs prove *where* the time goes but not *why*. A typical case: th
 
 - What is each User Profile Service thread waiting on? This uses Wait Chain Traversal, the same API behind Task Manager's "Analyze wait chain". It follows a blocked call across processes, so it can say "the profile service is waiting on a reply from service X".
 - Which processes were using CPU and disk during the wait? This covers the case where nothing is blocked and something is simply grinding.
+- If the profile service itself is the one grinding, what code is it running? The capture samples the call stacks of its busy threads and reports which DLLs and functions keep showing up.
 
-The recording has to keep running while you are signed out, so `--capture` creates a temporary scheduled task named `LogonDoctorWatch` that runs as SYSTEM. **This is the only part of the tool that is not read-only.** The task deletes itself after the sign-in, or after 30 minutes if you never sign out. It only observes; it never suspends or modifies another process.
+The recording has to keep running while you are signed out, so `--capture` creates a temporary scheduled task named `LogonDoctorWatch` that runs as SYSTEM. **This is the only part of the tool that is not read-only.** The task deletes itself after the sign-in, or after 30 minutes if you never sign out. It never modifies another process. To read a call stack it pauses the sampled thread for a few milliseconds, the same way Process Explorer and any profiler do.
 
 The next normal run folds the result into the report under **Live capture of a sign-in**.
 
@@ -145,6 +147,7 @@ The tool itself makes no network connections other than probing the mapped drive
 | `src/logons.rs` | Rebuilds sign-ins from four channels, times the phases, and produces the gap timeline |
 | `src/checks.rs` | Everything that inspects the machine as it is now: registry, file sizes, network paths, startup items |
 | `src/watch.rs` | Live capture: wait chains, per-process CPU and disk deltas |
+| `src/stacks.rs` | Call-stack sampling of busy threads in another process, used by the capture |
 | `src/report.rs` | Output plumbing and the `Finding` type that every check reports through |
 | `scripts/release-notes.sh` | Pulls one version's section out of `CHANGELOG.md` for the release text |
 

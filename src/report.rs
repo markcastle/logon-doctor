@@ -37,6 +37,8 @@ pub struct Report {
     pub blind_spots: Vec<String>,
     /// The logs cannot explain the delay; a live capture of the next sign-in would.
     pub suggest_capture: bool,
+    /// A live capture with a result already exists, so advice should point at it.
+    pub have_capture: bool,
 }
 
 impl Report {
