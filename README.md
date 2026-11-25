@@ -11,7 +11,7 @@ A small Windows command-line tool that works out why signing in takes so long.
 
 It exists because "my login takes three minutes" is miserable to debug by hand. The answer is nearly always already written down in the Windows event logs, but it is spread across a dozen channels with cryptic event IDs. Logon Doctor reads them all, rebuilds your recent sign-ins phase by phase, checks the usual suspects, and prints a ranked verdict.
 
-One exe of about 600 KB. Nothing to install, no dependencies, and the normal run changes nothing on your PC.
+One exe of about 600 KB. Nothing to install, no dependencies, and the normal run changes nothing on your PC. Only two explicit options do: `--capture` sets up a temporary recording task, and `--clean-temp` deletes temporary files after asking.
 
 ## 📦 Install
 
@@ -122,6 +122,7 @@ logon-doctor C:\Users\mark   :: same thing, a path works too
 logon-doctor --days 90       :: read further back in the event logs (default 30)
 logon-doctor --logons 20     :: tabulate more sign-ins (default 8)
 logon-doctor --capture       :: record the next sign-in live (administrator)
+logon-doctor --clean-temp    :: empty the Temp folder; asks first (--yes to skip, --all for recent files too)
 logon-doctor --no-pause      :: never wait for Enter (for scripts)
 logon-doctor --version
 ```
@@ -150,6 +151,7 @@ The normal report makes no network connections other than probing the mapped dri
 | `src/checks.rs` | Everything that inspects the machine as it is now: registry, file sizes, network paths, startup items |
 | `src/watch.rs` | Live capture: wait chains, per-process CPU and disk deltas |
 | `src/stacks.rs` | Call-stack sampling of busy threads in another process, and finding file paths on those stacks |
+| `src/clean.rs` | `--clean-temp`: the only code that deletes anything, with its guard rails |
 | `src/symbols.rs` | Downloads Microsoft's public PDB for a system DLL so stacks show real function names |
 | `src/report.rs` | Output plumbing and the `Finding` type that every check reports through |
 | `scripts/release-notes.sh` | Pulls one version's section out of `CHANGELOG.md` for the release text |

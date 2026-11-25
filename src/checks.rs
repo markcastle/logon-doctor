@@ -106,6 +106,12 @@ pub fn resolve_target(r: &mut Report, want_user: Option<&str>) -> Option<Target>
     found
 }
 
+/// `resolve_target` without the console output, for commands other than the report.
+pub fn resolve_target_quiet(r: &mut Report, want_user: Option<&str>) -> Option<Target> {
+    r.quiet = true;
+    resolve_target(r, want_user)
+}
+
 pub fn system_info(r: &mut Report, t: &Target, elevated: bool) {
     r.section("System");
     if let Some(k) = hklm(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion") {
@@ -557,8 +563,8 @@ fn temp_folder(r: &mut Report, temp: &Path) {
                  game launchers, updaters) are the usual source.",
                 temp.display(), files, fmt_bytes(bytes)
             ),
-            "Empty the folder. Close your apps, then in PowerShell: Get-ChildItem $env:TEMP -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue  \
-             Files in use are skipped, which is fine. To keep it from growing back, turn on Settings > System > Storage > Storage Sense and let it delete temporary files.",
+            "Empty the folder: close your apps and run 'logon-doctor --clean-temp'. It shows what it will delete and asks first; files in use are skipped. \
+             To keep it from growing back, turn on Settings > System > Storage > Storage Sense and let it delete temporary files.",
         );
     }
 }

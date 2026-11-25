@@ -4,6 +4,7 @@
 //! report next to itself. It changes nothing on the machine.
 
 mod checks;
+mod clean;
 mod evt;
 mod logons;
 mod report;
@@ -32,6 +33,8 @@ Usage: logon-doctor.exe [options] [profile]\n\nWith no arguments it diagnoses th
   --days N       How far back to read event logs (default 30).
   --logons N     How many recent sign-ins to tabulate (default 8).
   --no-pause     Do not wait for Enter before closing.
+  --clean-temp   Empty the Temp folder of the profile. Asks before deleting. Leaves anything
+                 from the last 24 hours unless you add --all; skip the question with --yes.
   --capture      Record the NEXT sign-in live (needs administrator). Sets up a temporary
                  background task, then you sign out and back in; the task removes itself.
                  Run logon-doctor.exe again afterwards to see what it caught.
@@ -50,6 +53,7 @@ fn main() {
     let mut pause = true;
     let mut watch = false;
     let mut capture = false;
+    let (mut clean_temp, mut assume_yes, mut include_recent) = (false, false, false);
     let mut self_remove = false;
     let mut minutes = 30u64;
     let mut args = std::env::args().skip(1);
@@ -61,6 +65,9 @@ fn main() {
             "--no-pause" => pause = false,
             "--watch" => watch = true,
             "--capture" => capture = true,
+            "--clean-temp" => clean_temp = true,
+            "--yes" | "-y" => assume_yes = true,
+            "--all" => include_recent = true,
             "--self-remove" => self_remove = true,
             "--minutes" => minutes = args.next().and_then(|v| v.parse().ok()).unwrap_or(minutes),
             "--version" | "-v" | "-V" => {
@@ -88,6 +95,15 @@ fn main() {
     }
 
     let elevated = unsafe { windows_sys::Win32::UI::Shell::IsUserAnAdmin() != 0 };
+    if clean_temp {
+        // Resolve the profile exactly as the report does, so --user works here too.
+        let mut scratch = Report::default();
+        match checks::resolve_target_quiet(&mut scratch, user.as_deref()) {
+            Some(t) => clean::run(std::path::Path::new(&t.path), assume_yes, include_recent),
+            None => println!("Could not work out which profile to clean. Use --user NAME."),
+        }
+        return;
+    }
     if capture {
         if !elevated {
             println!("--capture needs an elevated prompt (right-click > Run as administrator).");

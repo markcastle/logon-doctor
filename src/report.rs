@@ -39,11 +39,15 @@ pub struct Report {
     pub suggest_capture: bool,
     /// A live capture with a result already exists, so advice should point at it.
     pub have_capture: bool,
+    /// Collect text without printing it (used when another command borrows a check).
+    pub quiet: bool,
 }
 
 impl Report {
     pub fn line(&mut self, s: impl AsRef<str>) {
-        println!("{}", s.as_ref());
+        if !self.quiet {
+            println!("{}", s.as_ref());
+        }
         self.text.push_str(s.as_ref());
         self.text.push_str("\r\n");
     }
