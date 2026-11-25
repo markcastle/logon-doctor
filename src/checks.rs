@@ -243,6 +243,8 @@ pub fn profile(r: &mut Report, t: &Target, user_root: Option<&RegKey>) {
         );
     }
 
+    temp_folder(r, &base.join(r"AppData\Local\Temp"));
+
     if let Ok(rd) = std::fs::read_dir(base.join("Desktop")) {
         let n = rd.count();
         r.line(format!("Desktop items  : {}", n));
@@ -491,6 +493,73 @@ pub fn profile_service(r: &mut Report, sid: &str) {
                 );
             }
         }
+    }
+}
+
+/// The user's Temp folder is walked file by file at every sign-in.
+///
+/// Since Windows 10 1903, the User Profile Service tags everything under %LOCALAPPDATA%\Temp for
+/// "Reserved Storage" while it loads the profile (profsvc: CreateTempDirectoryForUser ->
+/// StorageReserveHelper::SetReserveAreaOnFileTree -> RecursiveScanDirectory). It opens every
+/// file, on the sign-in path, before the desktop is allowed to appear. Nothing is logged while it
+/// runs. A Temp folder with hundreds of thousands of leftover files therefore adds minutes to
+/// every sign-in, and it shows up as the profile service pegging one CPU core.
+fn temp_folder(r: &mut Report, temp: &Path) {
+    let started = Instant::now();
+    let budget = Duration::from_secs(40);
+    let (mut files, mut bytes, mut complete) = (0u64, 0u64, true);
+    let mut top: Vec<(u64, u64, String)> = Vec::new();
+    let Ok(rd) = std::fs::read_dir(temp) else {
+        r.line(format!("Temp folder    : could not read {}", temp.display()));
+        return;
+    };
+    for e in rd.flatten() {
+        let Ok(ft) = e.file_type() else { continue };
+        if ft.is_symlink() {
+            continue;
+        }
+        if ft.is_dir() {
+            let left = budget.saturating_sub(started.elapsed());
+            if left.is_zero() {
+                complete = false;
+                break;
+            }
+            let (b, f, done) = tree_size(&e.path(), left);
+            complete &= done;
+            files += f;
+            bytes += b;
+            top.push((f, b, e.file_name().to_string_lossy().to_string()));
+        } else if let Ok(m) = e.metadata() {
+            files += 1;
+            bytes += m.len();
+        }
+    }
+    r.line(format!(
+        "Temp folder    : {} in {} files{}  ({})",
+        fmt_bytes(bytes),
+        files,
+        if complete { "" } else { " (scan cut short - it is at least this big)" },
+        temp.display()
+    ));
+    top.sort_by(|a, b| b.0.cmp(&a.0));
+    if files >= 5000 {
+        for (f, b, name) in top.iter().take(6) {
+            r.line(format!("    {:>8} files  {:>10}  {}", f, fmt_bytes(*b), name));
+        }
+    }
+    if files >= 20_000 {
+        r.find(
+            if files >= 100_000 { Sev::High } else { Sev::Medium },
+            format!("Temp folder holds {} files, and Windows walks all of them at every sign-in", files),
+            format!(
+                "While loading your profile, Windows opens every file under '{}' to tag it for Reserved Storage. This happens before the desktop appears and logs nothing. \
+                 With {} files ({}) that walk takes a long time and shows up as the User Profile Service using a full CPU core. Leftover installer folders (Visual Studio, \
+                 game launchers, updaters) are the usual source.",
+                temp.display(), files, fmt_bytes(bytes)
+            ),
+            "Empty the folder. Close your apps, then in PowerShell: Get-ChildItem $env:TEMP -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue  \
+             Files in use are skipped, which is fine. To keep it from growing back, turn on Settings > System > Storage > Storage Sense and let it delete temporary files.",
+        );
     }
 }
 

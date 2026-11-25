@@ -84,6 +84,7 @@ Below the table you get a breakdown of the latest sign-in and a list of the **bi
 | --- | --- |
 | ⏱️ Sign-in timing | Profile load, Group Policy and its extensions, every Winlogon subscriber, startup command launch times |
 | 👤 Profile | Bloated `NTUSER.DAT` / `UsrClass.dat`, temporary profiles, broken `.bak` registrations, roaming profile size |
+| 🧹 Temp folder | The file count under `%LOCALAPPDATA%\Temp`. Windows walks every file there at each sign-in, so a bloated Temp folder costs minutes |
 | 🌐 Network paths | Dead or slow mapped drives, redirected folders and home shares, each probed with a timeout |
 | 🚀 Startup load | Run keys, Startup folders, logon-triggered scheduled tasks, and whether Task Manager has them disabled |
 | ⚙️ Settings | Policies that force sign-in to wait for the network or for scripts, a modified `Userinit`, disabled services the profile service depends on |

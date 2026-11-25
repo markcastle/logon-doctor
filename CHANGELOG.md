@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 Nothing yet.
 
+## [0.4.0] - 2026-11-25
+
+### Added
+
+- **Temp folder check.** The report now counts the files under `%LOCALAPPDATA%\Temp`, lists the largest subfolders, and raises a finding when there are tens of thousands. Since Windows 10 1903 the User Profile Service opens every file in that folder at each sign-in to tag it for Reserved Storage, before the desktop appears and without logging anything. A bloated Temp folder therefore adds minutes to every sign-in. This was the cause of the slow sign-in the tool was written to diagnose: live capture showed `profsvc!StorageReserveHelper::RecursiveScanDirectory` walking leftover Visual Studio installer folders for nearly three minutes.
+
 ## [0.3.0] - 2026-11-25
 
 ### Added
@@ -76,7 +82,8 @@ First public release.
 - Verified on Windows 10 22H2 only. Event field names differ between Windows builds, so a section may come back empty elsewhere.
 - No automated tests yet.
 
-[Unreleased]: https://github.com/markcastle/logon-doctor/compare/0.3.0...HEAD
+[Unreleased]: https://github.com/markcastle/logon-doctor/compare/0.4.0...HEAD
+[0.4.0]: https://github.com/markcastle/logon-doctor/releases/tag/0.4.0
 [0.3.0]: https://github.com/markcastle/logon-doctor/releases/tag/0.3.0
 [0.2.0]: https://github.com/markcastle/logon-doctor/releases/tag/0.2.0
 [0.1.1]: https://github.com/markcastle/logon-doctor/releases/tag/0.1.1
