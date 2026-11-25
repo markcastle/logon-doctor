@@ -8,6 +8,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 Nothing yet.
 
+## [0.1.1] - 2026-11-25
+
+### Fixed
+
+- **Live capture quit immediately** with "the User Profile Service (ProfSvc) is not running or could not be found". It now asks Windows for that service's process directly, and reports the Windows error code if that ever fails.
+- **`--capture` said "armed" when the recorder had already died.** It now checks the recorder is still running a few seconds after starting, and tells you straight away if it is not.
+- **Reports were saved into `C:\Windows\System32`** when run from an elevated prompt. They now go to the tool's own folder in that case.
+- **Profile errors for Windows' own accounts were blamed on you.** Failures for "Font Driver Host" and "Window Manager" were listed as "Windows could not load your profile". They are now reported once, under the leftover temporary folders finding.
+
 ## [0.1.0] - 2026-11-25
 
 First public release.
@@ -33,5 +42,6 @@ First public release.
 - Verified on Windows 10 22H2 only. Event field names differ between Windows builds, so a section may come back empty elsewhere.
 - No automated tests yet.
 
-[Unreleased]: https://github.com/markcastle/logon-doctor/compare/0.1.0...HEAD
+[Unreleased]: https://github.com/markcastle/logon-doctor/compare/0.1.1...HEAD
+[0.1.1]: https://github.com/markcastle/logon-doctor/releases/tag/0.1.1
 [0.1.0]: https://github.com/markcastle/logon-doctor/releases/tag/0.1.0

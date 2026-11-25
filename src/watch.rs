@@ -95,17 +95,56 @@ fn enable_debug_privilege() -> bool {
     }
 }
 
-/// Running services as (service name, pid).
-fn services() -> Vec<(String, u32)> {
+/// The process hosting one service, asked for directly. Err carries the Win32 error code.
+fn service_pid(name: &str) -> Result<u32, u32> {
+    unsafe {
+        let scm = OpenSCManagerW(std::ptr::null(), std::ptr::null(), 0x0001 /* CONNECT */);
+        if scm.is_null() {
+            return Err(windows_sys::Win32::Foundation::GetLastError());
+        }
+        let wname = wide(name);
+        let svc = OpenServiceW(scm, wname.as_ptr(), 0x0004 /* QUERY_STATUS */);
+        if svc.is_null() {
+            let e = windows_sys::Win32::Foundation::GetLastError();
+            CloseServiceHandle(scm);
+            return Err(e);
+        }
+        let mut status: SERVICE_STATUS_PROCESS = std::mem::zeroed();
+        let mut needed = 0u32;
+        let ok = QueryServiceStatusEx(
+            svc,
+            SC_STATUS_PROCESS_INFO,
+            &mut status as *mut _ as *mut u8,
+            std::mem::size_of::<SERVICE_STATUS_PROCESS>() as u32,
+            &mut needed,
+        );
+        let e = windows_sys::Win32::Foundation::GetLastError();
+        CloseServiceHandle(svc);
+        CloseServiceHandle(scm);
+        if ok == 0 {
+            return Err(e);
+        }
+        if status.dwProcessId == 0 {
+            return Err(1062); // ERROR_SERVICE_NOT_ACTIVE
+        }
+        Ok(status.dwProcessId)
+    }
+}
+
+/// Running services as (service name, pid), used only to label processes. Best effort:
+/// Err carries the Win32 error code and the capture carries on without the labels.
+fn services() -> Result<Vec<(String, u32)>, u32> {
     let mut out = Vec::new();
     unsafe {
-        let scm = OpenSCManagerW(std::ptr::null(), std::ptr::null(), 0x0004 /* ENUMERATE_SERVICE */);
+        let scm = OpenSCManagerW(std::ptr::null(), std::ptr::null(), 0x0001 | 0x0004 /* CONNECT | ENUMERATE_SERVICE */);
         if scm.is_null() {
-            return out;
+            return Err(windows_sys::Win32::Foundation::GetLastError());
         }
-        // u64 backing store keeps the returned structs correctly aligned.
-        let mut buf: Vec<u64> = vec![0; 64 * 1024];
+        // Windows rejects buffers over 256 KB here, so stay well under and page through
+        // with the resume handle. u64 backing store keeps the returned structs aligned.
+        let mut buf: Vec<u64> = vec![0; 8 * 1024]; // 64 KB
         let mut resume: u32 = 0;
+        let mut failure = None;
         loop {
             let (mut needed, mut count) = (0u32, 0u32);
             let ok = EnumServicesStatusExW(
@@ -120,8 +159,10 @@ fn services() -> Vec<(String, u32)> {
                 &mut resume,
                 std::ptr::null(),
             );
-            let more = ok == 0 && windows_sys::Win32::Foundation::GetLastError() == 234; // ERROR_MORE_DATA
+            let err = windows_sys::Win32::Foundation::GetLastError();
+            let more = ok == 0 && err == 234; // ERROR_MORE_DATA
             if ok == 0 && !more {
+                failure = Some(err);
                 break;
             }
             let items = std::slice::from_raw_parts(buf.as_ptr() as *const ENUM_SERVICE_STATUS_PROCESSW, count as usize);
@@ -138,8 +179,11 @@ fn services() -> Vec<(String, u32)> {
             }
         }
         CloseServiceHandle(scm);
+        if let (Some(e), true) = (failure, out.is_empty()) {
+            return Err(e);
+        }
     }
-    out
+    Ok(out)
 }
 
 /// pid -> exe name, and every thread id grouped by owning pid.
@@ -323,11 +367,17 @@ fn watch(minutes: u64) {
         log.line("WARNING: could not enable SeDebugPrivilege - run elevated or as SYSTEM, or results will be empty.");
     }
 
-    let svcs = services();
-    let Some(prof_pid) = svcs.iter().find(|(n, _)| n.eq_ignore_ascii_case("ProfSvc")).map(|(_, p)| *p) else {
-        log.line("ERROR: the User Profile Service (ProfSvc) is not running or could not be found.");
-        return;
+    let prof_pid = match service_pid("ProfSvc") {
+        Ok(pid) => pid,
+        Err(code) => {
+            log.line(format!("ERROR: could not locate the User Profile Service (ProfSvc) process. Windows error {}.", code));
+            return;
+        }
     };
+    let svcs = services().unwrap_or_else(|code| {
+        log.line(format!("Note: could not list services (Windows error {}), so processes will be shown without service names.", code));
+        Vec::new()
+    });
     let mut svc_by_pid: HashMap<u32, Vec<String>> = HashMap::new();
     for (n, p) in &svcs {
         if *p != 0 {

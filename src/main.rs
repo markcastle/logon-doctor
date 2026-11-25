@@ -141,7 +141,15 @@ fn main() {
         "LogonDoctor-report-{}.txt",
         chrono::Local::now().format("%Y%m%d-%H%M%S")
     );
-    let mut candidates = vec![std::path::PathBuf::from(&name)];
+    // An elevated prompt starts in System32; never leave reports there. Fall back to the
+    // tool's own folder, where capture logs live too.
+    let windir = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into()).to_lowercase();
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let mut candidates = Vec::new();
+    if !cwd.display().to_string().to_lowercase().starts_with(&windir) {
+        candidates.push(cwd.join(&name));
+    }
+    candidates.push(exe_dir().join(&name));
     if let Ok(tmp) = std::env::var("TEMP") {
         candidates.push(std::path::Path::new(&tmp).join(&name));
     }
@@ -274,6 +282,18 @@ fn arm_capture() -> bool {
         println!("(On a laptop, plug in the charger. The exe must be on a local drive.) Removing the task.");
         let _ = run(&["/delete", "/tn", watch::TASK, "/f"]);
         return false;
+    }
+    // It started - but did it stay up? A recorder that hits an error says so in its log.
+    std::thread::sleep(std::time::Duration::from_secs(3));
+    if let Some((path, _)) = latest_watch_log() {
+        let text = std::fs::read_to_string(&path).unwrap_or_default();
+        if let Some(err) = text.lines().find(|l| l.starts_with("ERROR")) {
+            println!("The recorder started but stopped straight away:");
+            println!("  {}", err);
+            println!("Nothing is armed. Please report this line; the task has been removed.");
+            let _ = run(&["/delete", "/tn", watch::TASK, "/f"]);
+            return false;
+        }
     }
     println!();
     println!("Recording is armed for the next 30 minutes. Now:");

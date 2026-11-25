@@ -1,6 +1,6 @@
 [package]
 name = "logon-doctor"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "Read-only diagnostic that works out why a Windows sign-in is slow"
 license = "MIT"

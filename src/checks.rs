@@ -669,9 +669,19 @@ pub fn error_events(r: &mut Report, days: u32) {
         r.line("None found.");
         return;
     }
+    // Profile failures for Windows' own per-session accounts (Font Driver Host, Window
+    // Manager) are not about the person signing in. They are reported once, by the
+    // leftover-TEMP-folders finding, and must not be presented as "your profile".
+    let system_account_noise = evs.iter().any(|e| {
+        e.data.iter().any(|(_, v)| v.contains("Font Driver Host") || v.contains("Window Manager"))
+    });
     for ((provider, id), list) in &groups {
         let latest = list.iter().max_by_key(|e| e.time).unwrap();
-        let (meaning, sev) = explain(provider, *id);
+        let (mut meaning, mut sev) = explain(provider, *id);
+        if system_account_noise && provider.to_lowercase().contains("user profile") && matches!(*id, 1500 | 1509 | 1511 | 1533) {
+            meaning = "Profile failure for a Windows system account (Font Driver Host / Window Manager), not for you - see the leftover TEMP folders finding";
+            sev = Sev::Info;
+        }
         r.line(format!(
             "{:>4}x  {} #{}  (latest {})",
             list.len(),
