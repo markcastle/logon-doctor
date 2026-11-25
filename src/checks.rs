@@ -404,7 +404,8 @@ pub fn registry_census(r: &mut Report, t: &Target) {
     }
     if let Some((subs, vals, path)) = c.fat.first() {
         let total = subs + vals;
-        if total >= 5000 {
+        // Explorer caps Shell\\Bags at 5000 by design, so that size alone means nothing.
+        if total >= 20_000 {
             r.find(
                 if total >= 20_000 { Sev::High } else { Sev::Medium },
                 format!("Registry bloat: one key holds {} entries", total),
@@ -420,12 +421,39 @@ pub fn registry_census(r: &mut Report, t: &Target) {
 }
 
 /// Things around the profile service itself: who it notifies, and signs of profile damage.
-pub fn profile_service(r: &mut Report) {
+pub fn profile_service(r: &mut Report, sid: &str) {
     r.section("Profile service environment");
     if let Some(k) = hklm(r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileNotification") {
         let subs: Vec<String> = k.enum_keys().flatten().collect();
         r.line(format!("Components notified on every profile load ({}): {}", subs.len(), subs.join(", ")));
     }
+    // How Windows has this profile registered, and any policy that changes profile handling.
+    // Raw values on purpose: these are what decide which code path the profile service takes.
+    let dump = |r: &mut Report, title: &str, key: Option<RegKey>| {
+        let Some(k) = key else { return };
+        let mut vals: Vec<String> = Vec::new();
+        for (name, v) in k.enum_values().flatten() {
+            let shown = match v.vtype {
+                REG_DWORD if v.bytes.len() >= 4 => {
+                    let n = u32::from_le_bytes([v.bytes[0], v.bytes[1], v.bytes[2], v.bytes[3]]);
+                    format!("{} (0x{:x})", n, n)
+                }
+                REG_SZ | REG_EXPAND_SZ | REG_MULTI_SZ => reg_str(&v).unwrap_or_default(),
+                _ => format!("<{} bytes>", v.bytes.len()),
+            };
+            vals.push(format!("{}={}", name, shown));
+        }
+        if !vals.is_empty() {
+            r.line(format!("{}:", title));
+            for v in vals {
+                r.line(format!("    {}", v.chars().take(150).collect::<String>()));
+            }
+        }
+    };
+    dump(r, "ProfileList (all profiles)", hklm(PROFILE_LIST));
+    dump(r, "ProfileList entry for this profile", hklm(&format!(r"{}\{}", PROFILE_LIST, sid)));
+    dump(r, "Machine policy: Windows\\System", hklm(r"SOFTWARE\Policies\Microsoft\Windows\System"));
+
     let users = Path::new(&std::env::var("SystemDrive").unwrap_or_else(|_| "C:".into())).join("\\Users");
     if let Ok(rd) = std::fs::read_dir(&users) {
         let temps: Vec<String> = rd
