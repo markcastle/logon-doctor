@@ -175,12 +175,17 @@ cargo build --release --target x86_64-pc-windows-msvc
 
 ### Releasing
 
-Push a tag and the workflow does the rest: it builds the exe, stamps the tag into `--version`, and attaches `logon-doctor.exe` and `SHA256SUMS.txt` to a GitHub Release. The install one-liner always fetches the latest release.
+The version lives in one place: `version` in `Cargo.toml`. The release tag must match it, and CI refuses to publish if it doesn't, so the tag, the release and what `logon-doctor --version` prints can never disagree.
+
+1. Bump `version` in `Cargo.toml` and merge that to `main`.
+2. Tag the same number with a `v` prefix:
 
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.1.0
+git push origin v0.1.0
 ```
+
+The workflow builds the exe and attaches `logon-doctor.exe` and `SHA256SUMS.txt` to a GitHub Release. The install one-liner always fetches the latest release. Builds that aren't from a tag report themselves as `<version>-dev.<commit>`.
 
 ### Testing
 

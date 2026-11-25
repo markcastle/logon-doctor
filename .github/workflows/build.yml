@@ -23,13 +23,21 @@ jobs:
           sudo apt-get install -y gcc-mingw-w64-x86-64
           rustup target add x86_64-pc-windows-gnu
 
+      # Cargo.toml is the single source of truth for the version. A release tag has to
+      # match it exactly, so the tag, the release and `--version` can never disagree.
       - name: Work out version string
         id: ver
         run: |
+          cargo_ver=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+            tag_ver="${GITHUB_REF#refs/tags/v}"
+            if [[ "$tag_ver" != "$cargo_ver" ]]; then
+              echo "::error::Tag v$tag_ver does not match Cargo.toml version $cargo_ver. Bump Cargo.toml first, or tag v$cargo_ver."
+              exit 1
+            fi
+            echo "version=$cargo_ver" >> "$GITHUB_OUTPUT"
           else
-            echo "version=0.0.0-$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+            echo "version=$cargo_ver-dev.$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           fi
 
       # .cargo/config.toml already selects the x86_64-pc-windows-gnu target and linker.
