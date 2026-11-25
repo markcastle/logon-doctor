@@ -365,7 +365,18 @@ fn findings(r: &mut Report, recent: &[&Logon]) {
     };
 
     let (last, worst, slow) = stat(&|l| l.profile_ms());
-    if worst >= 5000 {
+    if worst >= 5000 && last < 5000 {
+        // It was slow, and the most recent sign-in is fine: say so rather than raising an alarm.
+        r.find(
+            Sev::Info,
+            format!("Profile load is healthy now ({}), down from {} at worst", fmt_ms(last), fmt_ms(worst)),
+            format!(
+                "The latest sign-in loaded the profile in {}. It took over 5 s in {} of the last {} sign-ins, so whatever was slowing it has been dealt with.",
+                fmt_ms(last), slow, n
+            ),
+            "Nothing to do. If it creeps back up, check the Temp folder line in the Profile section first.",
+        );
+    } else if worst >= 5000 {
         let sev = if last >= 15_000 || (worst >= 15_000 && slow * 2 >= n) { Sev::High } else { Sev::Medium };
         // Split the load: registry hives first, then everything the service does afterwards.
         let hive_ms = latest.hive_at.map(|h| span(latest.start, h));
@@ -470,7 +481,9 @@ fn findings(r: &mut Report, recent: &[&Logon]) {
     // Time unaccounted for between the phases we can name.
     if let (Some(total), Some(_)) = (latest.total_ms(), latest.ready) {
         let named = latest.profile_ms().unwrap_or(0) + latest.gp_ms().unwrap_or(0);
-        if total >= 20_000 && total > named * 2 + 10_000 {
+        // Half a minute from credentials to Explorer running startup items is ordinary on a
+        // well-used PC; only call it out when a full minute is unexplained.
+        if total >= 60_000 && total > named * 2 + 10_000 {
             r.find(
                 Sev::Medium,
                 format!("{} of the latest sign-in is outside profile load and Group Policy", fmt_ms(total - named)),

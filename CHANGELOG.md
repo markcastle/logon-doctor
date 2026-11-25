@@ -18,6 +18,12 @@ Nothing yet.
 
 - The Temp folder finding now recommends `logon-doctor --clean-temp` instead of a PowerShell one-liner.
 
+### Fixed
+
+- **A fixed sign-in was still reported as a HIGH problem.** If the latest sign-in loads the profile quickly, the report now says the profile load is healthy and how slow it used to be, instead of flagging the old slow ones.
+- **A normal 30-second sign-in was flagged as having unexplained time.** That finding now needs a full minute unaccounted for.
+- **The capture said the profile service was "computing the whole time"** about a sub-second profile load. It now says the sign-in was healthy.
+
 ## [0.4.0] - 2026-11-25
 
 ### Added

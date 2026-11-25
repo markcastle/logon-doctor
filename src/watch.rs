@@ -506,6 +506,9 @@ fn watch(minutes: u64) {
     log.line("");
     log.line("=== SUMMARY ===================================================================");
     log.line(format!("Profile service held the sign-in for {} ({} -> {})", fmt_ms(span(start, end)), local_ms(start), local_ms(end)));
+    if span(start, end) < 5000 {
+        log.line("That is healthy. There was nothing slow to diagnose in this sign-in.");
+    }
     log.line("");
     log.line(format!("What ProfSvc threads were waiting on ({} one-second samples):", samples_in_logon));
     let mut t: Vec<_> = tally.into_iter().collect();
@@ -561,7 +564,7 @@ fn watch(minutes: u64) {
         }
         if let Some((_, u)) = rows.iter().find(|(p, _)| *p == prof_pid) {
             let wait = span(start, end).max(1);
-            if u.cpu_ms * 2 >= wait {
+            if wait >= 10_000 && u.cpu_ms * 2 >= wait {
                 log.line(format!(
                     "  => It used {} of CPU during a {} wait: it was COMPUTING the whole time, not waiting on anything.",
                     fmt_ms(u.cpu_ms), fmt_ms(wait)
