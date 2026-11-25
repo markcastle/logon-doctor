@@ -382,7 +382,7 @@ fn findings(r: &mut Report, recent: &[&Logon]) {
                 ),
                 if r.have_capture {
                     "A live capture has already been taken: read the 'Live capture of a sign-in' section below. It shows whether the profile service was waiting or computing, \
-                     and which DLLs were on its busy thread. The 'Registry census' section shows where the registry it works through is bloated."
+                     which functions were on its busy thread, and which folders it was working in. If another finding in this list names a folder or key, start there."
                 } else {
                     "Capture the next sign-in live: run 'logon-doctor.exe --capture' from an elevated prompt, sign out, sign back in, then run logon-doctor.exe again. \
                      It records what the profile service is waiting on or computing, second by second, and shows the result in this report."
