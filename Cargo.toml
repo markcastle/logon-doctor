@@ -1,0 +1,29 @@
+[package]
+name = "logon-doctor"
+version = "0.3.0"
+edition = "2021"
+description = "Read-only diagnostic that works out why a Windows sign-in is slow"
+license = "MIT"
+repository = "https://github.com/markcastle/logon-doctor"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+roxmltree = "0.20"
+winreg = "0.52"
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_System_EventLog",
+    "Win32_System_Console",
+    "Win32_UI_Shell",
+    "Win32_Security",
+    "Win32_System_Threading",
+    "Win32_System_Services",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Diagnostics_ToolHelp",
+] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+panic = "abort"

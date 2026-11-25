@@ -1,0 +1,39 @@
+# Rust build output
+/target/
+**/*.rs.bk
+*.pdb
+
+# Built binaries - releases are attached to GitHub Releases, never committed
+*.exe
+*.dll
+*.zip
+
+# Reports and capture logs the tool writes next to itself. These contain usernames,
+# SIDs, mapped drive paths and installed software, so they must never be committed.
+LogonDoctor-report-*.txt
+LogonDoctor-watch-*.txt
+
+# Scratch download page used during early development
+/dl/
+
+# Editor / IDE
+.vscode/
+.idea/
+.cursor/
+.vs/
+*.code-workspace
+*~
+*.swp
+*.swo
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS / misc
+.DS_Store
+*.log
+*.tmp
+*.temp

@@ -1,0 +1,7 @@
+[build]
+target = "x86_64-pc-windows-gnu"
+
+[target.x86_64-pc-windows-gnu]
+linker = "x86_64-w64-mingw32-gcc"
+# Statically link the C runtime so the .exe has no DLL dependencies beyond Windows itself.
+rustflags = ["-C", "target-feature=+crt-static"]
