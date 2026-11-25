@@ -48,8 +48,17 @@ jobs:
           cargo build --release --locked
           mkdir -p dist
           cp target/x86_64-pc-windows-gnu/release/logon-doctor.exe dist/
-          cd dist && sha256sum *.exe > SHA256SUMS.txt
-          ls -la
+          (cd dist && sha256sum *.exe > SHA256SUMS.txt)
+          ls -la dist
+
+      # The release text is the CHANGELOG.md section for this version. This runs on every
+      # build, so bumping Cargo.toml without writing the notes fails in the pull request,
+      # long before anyone tries to tag.
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          cargo_ver=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          scripts/release-notes.sh "$cargo_ver" > dist/RELEASE_NOTES.md
+          cat dist/RELEASE_NOTES.md
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v5
@@ -74,4 +83,6 @@ jobs:
           files: |
             dist/logon-doctor.exe
             dist/SHA256SUMS.txt
+          body_path: dist/RELEASE_NOTES.md
+          # Appends GitHub's own list of merged pull requests under our notes.
           generate_release_notes: true

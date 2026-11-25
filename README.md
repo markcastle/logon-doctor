@@ -146,6 +146,7 @@ The tool itself makes no network connections other than probing the mapped drive
 | `src/checks.rs` | Everything that inspects the machine as it is now: registry, file sizes, network paths, startup items |
 | `src/watch.rs` | Live capture: wait chains, per-process CPU and disk deltas |
 | `src/report.rs` | Output plumbing and the `Finding` type that every check reports through |
+| `scripts/release-notes.sh` | Pulls one version's section out of `CHANGELOG.md` for the release text |
 
 ### Things worth knowing before you change it
 
@@ -175,21 +176,35 @@ cargo build --release --target x86_64-pc-windows-msvc
 
 ### Releasing
 
-The version lives in one place: `version` in `Cargo.toml`. The release tag must match it, and CI refuses to publish if it doesn't, so the tag, the release and what `logon-doctor --version` prints can never disagree.
+The version lives in one place: `version` in `Cargo.toml`. CI checks that the release tag matches it and that `CHANGELOG.md` has a section for it, so the tag, the release notes and what `logon-doctor --version` prints can never disagree.
 
-1. Bump `version` in `Cargo.toml` and merge that to `main`.
-2. Tag the same number with a `v` prefix:
+1. Bump `version` in `Cargo.toml`.
+2. In [`CHANGELOG.md`](CHANGELOG.md), rename `[Unreleased]` to the new version with today's date, and add a fresh empty `[Unreleased]` above it. Write entries for the people using the tool: what changed for them, not which functions moved.
+3. Merge that to `main`.
+4. Tag the same number with a `v` prefix:
 
 ```bash
 git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The workflow builds the exe and attaches `logon-doctor.exe` and `SHA256SUMS.txt` to a GitHub Release. The install one-liner always fetches the latest release. Builds that aren't from a tag report themselves as `<version>-dev.<commit>`.
+The workflow builds the exe, attaches `logon-doctor.exe` and `SHA256SUMS.txt` to a GitHub Release, and uses that version's changelog section as the release text. The install one-liner always fetches the latest release. Builds that aren't from a tag report themselves as `<version>-dev.<commit>`.
+
+To preview the notes a release will get:
+
+```bash
+scripts/release-notes.sh 0.1.0
+```
 
 ### Testing
 
 There is no automated test suite yet. The tool can only really be exercised on Windows, against real event logs, and the cross-compiled exe does not run under Wine. Changes so far have been verified by running on Windows 10 22H2. A set of captured event XML fixtures for `evt.rs` and `logons.rs` would be the most valuable first addition.
+
+---
+
+## 📝 Changelog
+
+What changed in each release is in [CHANGELOG.md](CHANGELOG.md). The same text appears on the [releases page](https://github.com/markcastle/logon-doctor/releases).
 
 ---
 
