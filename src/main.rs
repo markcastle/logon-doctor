@@ -23,6 +23,16 @@ const VERSION: &str = match option_env!("LOGON_DOCTOR_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
+/// Shown after every report. The joke is on us and we know it.
+const AI_TIP: &[&str] = &[
+    "TIP: the easiest way to make sense of this report is to paste it into ChatGPT or Claude",
+    "     and ask \"why is my Windows sign-in slow?\" \u{1F602}",
+    "     Yes, we see the irony. We built this because the clues to a slow sign-in are buried in",
+    "     logs scattered all over Windows... and then we went and made one more log. \u{1F923}",
+    "     At least it is only the one.",
+    "     Before you paste: it contains your username, PC name, drive paths and installed apps.",
+];
+
 const HELP: &str = "\
 Logon Doctor - finds out why a Windows sign-in is slow (read-only).
 
@@ -178,7 +188,14 @@ fn main() {
     if let Ok(tmp) = std::env::var("TEMP") {
         candidates.push(std::path::Path::new(&tmp).join(&name));
     }
-    let saved = candidates.iter().find(|p| std::fs::write(p, r.text.as_bytes()).is_ok());
+    // The tip goes in the file too, so it travels with the report. The file gets a UTF-8
+    // byte-order mark so Notepad shows the emoji instead of mojibake.
+    r.file_only("");
+    for l in AI_TIP {
+        r.file_only(l);
+    }
+    let contents = format!("{}{}", '\u{feff}', r.text);
+    let saved = candidates.iter().find(|p| std::fs::write(p, contents.as_bytes()).is_ok());
     println!();
     match saved {
         Some(p) => println!(
@@ -188,6 +205,10 @@ fn main() {
                 .unwrap_or_else(|_| p.display().to_string())
         ),
         None => println!("Could not save the report file."),
+    }
+    println!();
+    for l in AI_TIP {
+        println!("{}", l);
     }
 
     // The logs ran out of answers: offer to catch the next sign-in in the act.

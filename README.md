@@ -131,6 +131,18 @@ You only need `--user` when the elevated prompt belongs to a different account f
 
 ---
 
+## 🤖 Reading the report the easy way
+
+The report is thorough, which is a polite way of saying long. The easiest way to make sense of it is to paste it into ChatGPT or Claude and ask "why is my Windows sign-in slow?" 😂
+
+Yes, we see the irony. We built this because the clues to a slow sign-in are buried in logs scattered all over Windows... and then we went and made one more log. 🤣 At least it's only the one, it's in plain English, and it already has the timeline stitched together, which is exactly what an AI assistant is good at reading.
+
+That is also how the tool itself was developed: each report was pasted back into Claude, which read the timeline, spotted what was missing, and added the next check. The Temp folder finding came out of that loop.
+
+Before you paste a report anywhere, read the [Privacy](#-privacy) note below.
+
+---
+
 ## 🔒 Privacy
 
 Reports and capture logs contain usernames, SIDs, mapped drive paths, installed software and event log excerpts. Read one before you post it anywhere public. The repo's `.gitignore` excludes them so they can't be committed by accident.
@@ -162,7 +174,7 @@ The normal report makes no network connections other than probing the mapped dri
 - **Sign-ins are stitched together by time window.** The User Profile Service events give one skeleton entry per interactive logon; events from the other channels are attached if they fall inside that logon's window. There is no shared correlation ID to join on.
 - **Thresholds are judgement calls.** "Profile load over 5 s is slow" and "a hive over 60 MB is bloated" are sensible defaults, not Microsoft figures. They live next to the check that uses them.
 - **Every check reports through `Report::find`.** Give it a severity, a title, what it means, and a concrete fix. If you can't write the fix, it is probably information for the report body and not a finding.
-- **Output is plain ASCII on purpose.** The Windows console code page mangles anything else.
+- **Output is plain ASCII on purpose.** The Windows console code page mangles anything else. The one exception is the closing tip, which has two emoji; older console windows may show them as boxes, and nothing depends on them.
 
 ### Building
 

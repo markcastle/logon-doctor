@@ -8,6 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 Nothing yet.
 
+## [0.5.1] - 2026-11-25
+
+### Added
+
+- **A tip at the end of every report:** the easiest way to make sense of it is to paste it into ChatGPT or Claude. 😂 Yes, we know: a tool born from "the logs are scattered everywhere" now produces a log of its own. 🤣 The tip also reminds you what personal details the report contains before you paste it anywhere.
+
+### Changed
+
+- The report file is now saved with a UTF-8 byte-order mark so Notepad displays it correctly.
+
 ## [0.5.0] - 2026-11-25
 
 ### Added
@@ -98,7 +108,8 @@ First public release.
 - Verified on Windows 10 22H2 only. Event field names differ between Windows builds, so a section may come back empty elsewhere.
 - No automated tests yet.
 
-[Unreleased]: https://github.com/markcastle/logon-doctor/compare/0.5.0...HEAD
+[Unreleased]: https://github.com/markcastle/logon-doctor/compare/0.5.1...HEAD
+[0.5.1]: https://github.com/markcastle/logon-doctor/releases/tag/0.5.1
 [0.5.0]: https://github.com/markcastle/logon-doctor/releases/tag/0.5.0
 [0.4.0]: https://github.com/markcastle/logon-doctor/releases/tag/0.4.0
 [0.3.0]: https://github.com/markcastle/logon-doctor/releases/tag/0.3.0
