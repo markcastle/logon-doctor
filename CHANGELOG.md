@@ -8,6 +8,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 Nothing yet.
 
+## [0.2.0] - 2026-11-25
+
+### Added
+
+- **Live capture now says what a busy profile service is running.** When the User Profile Service is burning CPU instead of waiting, the capture samples its busy threads' call stacks once a second and reports which DLLs and functions keep appearing. No debug symbols are needed to name the DLL.
+- **Registry census.** Counts the keys in the user's registry and lists the largest branches and the keys with the most entries. A single key with thousands of children is a classic cause of a sign-in that is slow on the CPU with no disk activity.
+- **Capture verdict line.** The capture states outright when the profile service was computing for the whole wait, and whether that looks like registry work or file work.
+- **Session and start time for busy processes** in the capture, so a process that was running while you were signed out stands out.
+
+### Changed
+
+- Once a capture exists, the verdict points at its result instead of telling you to take another one.
+
+### Notes
+
+- To read a call stack, the capture pauses the sampled thread for a few milliseconds, as any profiler does. Earlier versions only observed.
+
 ## [0.1.1] - 2026-11-25
 
 ### Fixed
@@ -42,6 +59,7 @@ First public release.
 - Verified on Windows 10 22H2 only. Event field names differ between Windows builds, so a section may come back empty elsewhere.
 - No automated tests yet.
 
-[Unreleased]: https://github.com/markcastle/logon-doctor/compare/0.1.1...HEAD
+[Unreleased]: https://github.com/markcastle/logon-doctor/compare/0.2.0...HEAD
+[0.2.0]: https://github.com/markcastle/logon-doctor/releases/tag/0.2.0
 [0.1.1]: https://github.com/markcastle/logon-doctor/releases/tag/0.1.1
 [0.1.0]: https://github.com/markcastle/logon-doctor/releases/tag/0.1.0

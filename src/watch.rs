@@ -222,6 +222,8 @@ fn snapshot() -> (HashMap<u32, String>, HashMap<u32, Vec<u32>>) {
 
 #[derive(Clone, Copy, Default)]
 struct Usage {
+    /// Process creation time, ms since the Unix epoch.
+    started_ms: i64,
     cpu_ms: u64,
     read_ops: u64,
     read_bytes: u64,
@@ -245,6 +247,8 @@ fn usage(pid: u32) -> Option<Usage> {
         }
         let ft = |f: FILETIME| ((f.dwHighDateTime as u64) << 32 | f.dwLowDateTime as u64) / 10_000;
         Some(Usage {
+            // FILETIME counts from 1601; shift to the Unix epoch.
+            started_ms: ft(c) as i64 - 11_644_473_600_000,
             cpu_ms: ft(k) + ft(u),
             read_ops: io.ReadOperationCount,
             read_bytes: io.ReadTransferCount,
@@ -396,6 +400,11 @@ fn watch(minutes: u64) {
         return;
     }
 
+    let mut sampler = crate::stacks::Sampler::open(prof_pid);
+    if let Some(e) = &sampler.error {
+        log.line(format!("Note: call-stack sampling unavailable: {}", e));
+    }
+
     let deadline = Instant::now() + Duration::from_secs(minutes * 60);
     let mut tally: HashMap<String, (u32, String)> = HashMap::new(); // signature -> (samples, example)
     let mut last_sig = String::new();
@@ -420,6 +429,9 @@ fn watch(minutes: u64) {
             }
         }
         sigs.sort();
+
+        // 1b. If a ProfSvc thread is busy rather than blocked, record what code it is running.
+        sampler.sample(threads.get(&prof_pid).map(|v| v.as_slice()).unwrap_or(&[]));
         let joined = sigs.iter().map(|s| s.0.as_str()).collect::<Vec<_>>().join(" | ");
         if joined != last_sig {
             if sigs.is_empty() {
@@ -440,7 +452,21 @@ fn watch(minutes: u64) {
             for (pid, _) in &ctx.procs {
                 if let Some(u) = usage(*pid) {
                     snap.insert(*pid, u);
-                    names.entry(*pid).or_insert_with(|| ctx.who(*pid));
+                    names.entry(*pid).or_insert_with(|| {
+                        let mut session = 0u32;
+                        let has_session = unsafe {
+                            windows_sys::Win32::System::RemoteDesktop::ProcessIdToSessionId(*pid, &mut session) != 0
+                        };
+                        let started = chrono::DateTime::<chrono::Utc>::from_timestamp_millis(u.started_ms)
+                            .map(local)
+                            .unwrap_or_default();
+                        format!(
+                            "{}, session {}, started {}",
+                            ctx.who(*pid),
+                            if has_session { session.to_string() } else { "?".into() },
+                            started
+                        )
+                    });
                 }
             }
             usage_log.push((now, snap));
@@ -452,6 +478,7 @@ fn watch(minutes: u64) {
             if let (None, Some((s, _))) = (&window, &state) {
                 log.line(format!("{}  >>> sign-in started (profile service notified at {})", local_ms(now), local_ms(*s)));
                 tally.clear(); // only count what happens during the sign-in
+                sampler.clear();
             }
             if state.is_some() {
                 window = state;
@@ -487,6 +514,12 @@ fn watch(minutes: u64) {
         log.line(format!("  ~{:>4} s  {}", n, example));
     }
 
+    log.line("");
+    log.line("What the profile service's busy threads were running:");
+    for l in sampler.summary() {
+        log.line(l);
+    }
+
     // Usage between the snapshots bracketing the wait.
     let first = usage_log.iter().rev().find(|(t, _)| *t <= start).or(usage_log.first());
     let last = usage_log.iter().find(|(t, _)| *t >= end).or(usage_log.last());
@@ -497,6 +530,7 @@ fn watch(minutes: u64) {
             rows.push((
                 *pid,
                 Usage {
+                    started_ms: ub.started_ms,
                     cpu_ms: ub.cpu_ms.saturating_sub(ua.cpu_ms),
                     read_ops: ub.read_ops.saturating_sub(ua.read_ops),
                     read_bytes: ub.read_bytes.saturating_sub(ua.read_bytes),
@@ -520,6 +554,18 @@ fn watch(minutes: u64) {
         log.line("The profile service's own process:");
         if let Some((pid, u)) = rows.iter().find(|(p, _)| *p == prof_pid) {
             show(&mut log, *pid, u);
+        }
+        if let Some((_, u)) = rows.iter().find(|(p, _)| *p == prof_pid) {
+            let wait = span(start, end).max(1);
+            if u.cpu_ms * 2 >= wait {
+                log.line(format!(
+                    "  => It used {} of CPU during a {} wait: it was COMPUTING the whole time, not waiting on anything.",
+                    fmt_ms(u.cpu_ms), fmt_ms(wait)
+                ));
+                if u.read_ops < 1000 {
+                    log.line("     With almost no disk reads, that points at registry or in-memory work, not files.");
+                }
+            }
         }
         log.line("Busiest by CPU:");
         rows.sort_by(|x, y| y.1.cpu_ms.cmp(&x.1.cpu_ms));

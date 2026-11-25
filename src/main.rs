@@ -7,6 +7,7 @@ mod checks;
 mod evt;
 mod logons;
 mod report;
+mod stacks;
 mod watch;
 
 use report::{wrap, Report, Sev};
@@ -95,6 +96,10 @@ fn main() {
         return;
     }
     let mut r = Report::default();
+    r.have_capture = latest_watch_log()
+        .and_then(|(p, _)| std::fs::read_to_string(p).ok())
+        .map(|t| t.contains("=== SUMMARY"))
+        .unwrap_or(false);
     r.line(format!("Logon Doctor {} - read-only sign-in diagnostics", VERSION));
     r.line(format!("Run at {}", report::local(chrono::Utc::now())));
 
@@ -116,6 +121,7 @@ fn main() {
             let all = logons::collect(&mut r, days, &t.path);
             logons::report(&mut r, &all, show.max(1), days);
             checks::profile(&mut r, &t, user_root.as_ref());
+            checks::registry_census(&mut r, &t);
             checks::startup(&mut r, &t, user_root.as_ref());
             checks::policy(&mut r, user_root.as_ref());
         }

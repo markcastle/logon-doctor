@@ -1,6 +1,6 @@
 [package]
 name = "logon-doctor"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2021"
 description = "Read-only diagnostic that works out why a Windows sign-in is slow"
 license = "MIT"
@@ -20,6 +20,8 @@ windows-sys = { version = "0.59", features = [
     "Win32_System_Services",
     "Win32_System_Diagnostics_Debug",
     "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Kernel",
+    "Win32_System_RemoteDesktop",
 ] }
 
 [profile.release]
