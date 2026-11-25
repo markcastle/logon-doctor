@@ -8,6 +8,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 Nothing yet.
 
+## [0.5.0] - 2026-11-25
+
+### Added
+
+- **`--clean-temp`** empties the profile's Temp folder, the fix for the bloated-Temp finding. It only touches `AppData\Local\Temp`, shows the file count and size, and asks before deleting. Anything created or changed in the last 24 hours is left alone unless you add `--all`, files in use are skipped, and links are removed without being followed. `--yes` skips the question.
+
+### Changed
+
+- The Temp folder finding now recommends `logon-doctor --clean-temp` instead of a PowerShell one-liner.
+
 ## [0.4.0] - 2026-11-25
 
 ### Added
@@ -82,7 +92,8 @@ First public release.
 - Verified on Windows 10 22H2 only. Event field names differ between Windows builds, so a section may come back empty elsewhere.
 - No automated tests yet.
 
-[Unreleased]: https://github.com/markcastle/logon-doctor/compare/0.4.0...HEAD
+[Unreleased]: https://github.com/markcastle/logon-doctor/compare/0.5.0...HEAD
+[0.5.0]: https://github.com/markcastle/logon-doctor/releases/tag/0.5.0
 [0.4.0]: https://github.com/markcastle/logon-doctor/releases/tag/0.4.0
 [0.3.0]: https://github.com/markcastle/logon-doctor/releases/tag/0.3.0
 [0.2.0]: https://github.com/markcastle/logon-doctor/releases/tag/0.2.0
