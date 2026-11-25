@@ -33,5 +33,5 @@ First public release.
 - Verified on Windows 10 22H2 only. Event field names differ between Windows builds, so a section may come back empty elsewhere.
 - No automated tests yet.
 
-[Unreleased]: https://github.com/markcastle/logon-doctor/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/markcastle/logon-doctor/releases/tag/v0.1.0
+[Unreleased]: https://github.com/markcastle/logon-doctor/compare/0.1.0...HEAD
+[0.1.0]: https://github.com/markcastle/logon-doctor/releases/tag/0.1.0

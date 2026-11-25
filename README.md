@@ -181,14 +181,17 @@ The version lives in one place: `version` in `Cargo.toml`. CI checks that the re
 1. Bump `version` in `Cargo.toml`.
 2. In [`CHANGELOG.md`](CHANGELOG.md), rename `[Unreleased]` to the new version with today's date, and add a fresh empty `[Unreleased]` above it. Write entries for the people using the tool: what changed for them, not which functions moved.
 3. Merge that to `main`.
-4. Tag the same number with a `v` prefix:
+4. Publish it, whichever way you prefer. The tag is the version number, with or without a leading `v`:
+
+    - In the GitHub UI: **Releases > Draft a new release**, type the tag, publish. You can leave the description empty.
+    - Or from a terminal:
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag 0.2.0
+git push origin 0.2.0
 ```
 
-The workflow builds the exe, attaches `logon-doctor.exe` and `SHA256SUMS.txt` to a GitHub Release, and uses that version's changelog section as the release text. The install one-liner always fetches the latest release. Builds that aren't from a tag report themselves as `<version>-dev.<commit>`.
+Either way the workflow builds the exe, attaches `logon-doctor.exe` and `SHA256SUMS.txt` to the release, and fills in that version's changelog section as the release text. If a release exists for the current version but has no exe yet, the next build on `main` attaches one. The install one-liner always fetches the latest release. Builds that aren't part of a release report themselves as `<version>-dev.<commit>`.
 
 To preview the notes a release will get:
 
