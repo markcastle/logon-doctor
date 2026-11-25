@@ -8,6 +8,7 @@ mod evt;
 mod logons;
 mod report;
 mod stacks;
+mod symbols;
 mod watch;
 
 use report::{wrap, Report, Sev};
@@ -103,8 +104,10 @@ fn main() {
     r.line(format!("Logon Doctor {} - read-only sign-in diagnostics", VERSION));
     r.line(format!("Run at {}", report::local(chrono::Utc::now())));
 
+    let mut target_sid = String::new();
     match checks::resolve_target(&mut r, user.as_deref()) {
         Some(t) => {
+            target_sid = t.sid.clone();
             // Prefer the target user's loaded hive; fall back to our own HKCU if it is us.
             let user_root = RegKey::predef(HKEY_USERS).open_subkey(&t.sid).ok().or_else(|| {
                 if user.is_none() {
@@ -130,7 +133,7 @@ fn main() {
             checks::policy(&mut r, None);
         }
     }
-    checks::profile_service(&mut r);
+    checks::profile_service(&mut r, &target_sid);
     checks::error_events(&mut r, days);
     checks::boot_perf(&mut r, days);
 
@@ -254,6 +257,11 @@ fn latest_watch_log() -> Option<(std::path::PathBuf, std::time::SystemTime)> {
 /// to keep going while the user is signed out. The task deletes itself when it finishes.
 fn arm_capture() -> bool {
     let exe = std::env::current_exe().unwrap_or_default();
+    // Real function names for the profile service's code, if Microsoft's symbol server is
+    // reachable. Done here because the recorder itself runs as SYSTEM while nobody is signed in.
+    for line in symbols::fetch(&exe_dir().join("symbols"), &["profsvc.dll"]) {
+        println!("{}", line);
+    }
     let before = std::time::SystemTime::now();
     let command = format!("\"{}\" --watch --self-remove", exe.display());
     let run = |args: &[&str]| {

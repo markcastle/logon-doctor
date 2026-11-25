@@ -400,7 +400,11 @@ fn watch(minutes: u64) {
         return;
     }
 
-    let mut sampler = crate::stacks::Sampler::open(prof_pid);
+    let symbol_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.join("symbols")))
+        .unwrap_or_default();
+    let mut sampler = crate::stacks::Sampler::open(prof_pid, &symbol_dir);
     if let Some(e) = &sampler.error {
         log.line(format!("Note: call-stack sampling unavailable: {}", e));
     }
@@ -562,8 +566,16 @@ fn watch(minutes: u64) {
                     "  => It used {} of CPU during a {} wait: it was COMPUTING the whole time, not waiting on anything.",
                     fmt_ms(u.cpu_ms), fmt_ms(wait)
                 ));
-                if u.read_ops < 1000 {
-                    log.line("     With almost no disk reads, that points at registry or in-memory work, not files.");
+                let (file, reg) = sampler.kind_shares();
+                if file >= 40 {
+                    log.line(format!(
+                        "     Its busy thread was in file-system calls (opening files, listing folders) in {}% of samples:",
+                        file
+                    ));
+                    log.line("     it is WALKING A LARGE FOLDER TREE. Those are metadata calls answered from memory,");
+                    log.line("     which is why almost nothing shows up as disk reads. See the folder list above.");
+                } else if reg >= 40 {
+                    log.line(format!("     Its busy thread was in registry calls in {}% of samples: it is working through registry keys.", reg));
                 }
             }
         }

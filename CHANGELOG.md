@@ -8,6 +8,23 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 Nothing yet.
 
+## [0.3.0] - 2026-11-25
+
+### Added
+
+- **The capture now names the folders a busy profile service is walking.** It reads file paths off the busy thread's stack and shows them as a folder tree with the share of samples that mention each one.
+- **Real function names.** `--capture` downloads Microsoft's public debug symbols for `profsvc.dll`, so call stacks show the actual function instead of the nearest exported one. If the download fails the capture still works with approximate names.
+- **Profile registration dump.** The report prints the raw `ProfileList` values for the profile and any machine policy under `Policies\Microsoft\Windows\System`, which decide how the profile service treats the profile.
+
+### Changed
+
+- The capture's verdict is now based on what the busy thread was calling. 0.2.0 guessed "registry work" whenever disk reads were low, which was wrong: walking folders is answered from memory and barely registers as disk reads either.
+- The registry census no longer flags `Shell\Bags` at 5,000 entries. Explorer caps that key at 5,000 by design.
+
+### Notes
+
+- `--capture` now makes one outbound request, to Microsoft's symbol server (`msdl.microsoft.com`), to fetch `profsvc.pdb`.
+
 ## [0.2.0] - 2026-11-25
 
 ### Added
@@ -59,7 +76,8 @@ First public release.
 - Verified on Windows 10 22H2 only. Event field names differ between Windows builds, so a section may come back empty elsewhere.
 - No automated tests yet.
 
-[Unreleased]: https://github.com/markcastle/logon-doctor/compare/0.2.0...HEAD
+[Unreleased]: https://github.com/markcastle/logon-doctor/compare/0.3.0...HEAD
+[0.3.0]: https://github.com/markcastle/logon-doctor/releases/tag/0.3.0
 [0.2.0]: https://github.com/markcastle/logon-doctor/releases/tag/0.2.0
 [0.1.1]: https://github.com/markcastle/logon-doctor/releases/tag/0.1.1
 [0.1.0]: https://github.com/markcastle/logon-doctor/releases/tag/0.1.0
