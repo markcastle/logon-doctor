@@ -1,19 +1,38 @@
 name: Build
 
+# One workflow builds every commit and publishes releases.
+#
+# How a release happens - either route works, and tags may be `v0.1.0` or plain `0.1.0`:
+#   * Create a release in the GitHub UI. The exe is built and attached to it.
+#   * Push a tag. A release is created for it with the exe attached.
+#
+# Cargo.toml is the single source of truth for the version. A tag that disagrees with it
+# fails the build, and so does a version with no section in CHANGELOG.md.
+
 on:
   push:
     branches: [main, master]
-    tags: ['v*']
+    tags: ['v*', '[0-9]*']
+  release:
+    types: [published]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: write
 
+# Publishing runs one at a time, so a tag push and its release event cannot both upload.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && github.ref || 'publish' }}
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build logon-doctor.exe (MinGW cross-compile)
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v5
 
@@ -23,33 +42,69 @@ jobs:
           sudo apt-get install -y gcc-mingw-w64-x86-64
           rustup target add x86_64-pc-windows-gnu
 
-      # Cargo.toml is the single source of truth for the version. A release tag has to
-      # match it exactly, so the tag, the release and `--version` can never disagree.
-      - name: Work out version string
-        id: ver
+      # Decide what this run is: an ordinary build, or the one that publishes a release.
+      - name: Plan
+        id: plan
         run: |
-          cargo_ver=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            tag_ver="${GITHUB_REF#refs/tags/v}"
-            if [[ "$tag_ver" != "$cargo_ver" ]]; then
-              echo "::error::Tag v$tag_ver does not match Cargo.toml version $cargo_ver. Bump Cargo.toml first, or tag v$cargo_ver."
+          ver=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          publish_tag=""
+          create=false
+
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            tag="${GITHUB_REF#refs/tags/}"
+            if [[ "${tag#v}" != "$ver" ]]; then
+              echo "::error::Tag $tag does not match Cargo.toml version $ver. Bump Cargo.toml first, or tag $ver."
               exit 1
             fi
-            echo "version=$cargo_ver" >> "$GITHUB_OUTPUT"
-          else
-            echo "version=$cargo_ver-dev.$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           fi
+
+          if [[ "$GITHUB_EVENT_NAME" != "pull_request" ]]; then
+            # Is there already a release for this version waiting for its exe?
+            for t in "v$ver" "$ver"; do
+              if gh release view "$t" >/dev/null 2>&1; then
+                if gh release view "$t" --json assets --jq '.assets[].name' | grep -qx 'logon-doctor.exe'; then
+                  echo "Release $t already has its exe. Nothing to publish."
+                else
+                  publish_tag="$t"
+                fi
+                break
+              fi
+            done
+            # A pushed tag with no release yet: create one.
+            if [[ -z "$publish_tag" && "$GITHUB_REF" == refs/tags/* ]] && ! gh release view "${GITHUB_REF#refs/tags/}" >/dev/null 2>&1; then
+              publish_tag="${GITHUB_REF#refs/tags/}"
+              create=true
+            fi
+          fi
+
+          if [[ -n "$publish_tag" ]]; then
+            echo "version=$ver" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$ver-dev.$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          fi
+          echo "cargo_version=$ver" >> "$GITHUB_OUTPUT"
+          echo "publish_tag=$publish_tag" >> "$GITHUB_OUTPUT"
+          echo "create=$create" >> "$GITHUB_OUTPUT"
+          echo "Plan: version=$ver publish_tag=${publish_tag:-none} create=$create"
 
       # .cargo/config.toml already selects the x86_64-pc-windows-gnu target and linker.
       - name: Build
         env:
-          LOGON_DOCTOR_VERSION: ${{ steps.ver.outputs.version }}
+          LOGON_DOCTOR_VERSION: ${{ steps.plan.outputs.version }}
         run: |
           cargo build --release --locked
           mkdir -p dist
           cp target/x86_64-pc-windows-gnu/release/logon-doctor.exe dist/
-          cd dist && sha256sum *.exe > SHA256SUMS.txt
-          ls -la
+          (cd dist && sha256sum *.exe > SHA256SUMS.txt)
+          ls -la dist
+
+      # The release text is the CHANGELOG.md section for this version. This runs on every
+      # build, so bumping Cargo.toml without writing the notes fails in the pull request,
+      # long before anyone tries to release.
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          scripts/release-notes.sh "${{ steps.plan.outputs.cargo_version }}" > dist/RELEASE_NOTES.md
+          cat dist/RELEASE_NOTES.md
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v5
@@ -57,21 +112,16 @@ jobs:
           name: logon-doctor-windows
           path: dist/*
 
-  release:
-    name: Publish GitHub Release
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v5
-        with:
-          name: logon-doctor-windows
-          path: dist
-
-      - name: Create release and attach binaries
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/logon-doctor.exe
-            dist/SHA256SUMS.txt
-          generate_release_notes: true
+      - name: Publish to the GitHub Release
+        if: steps.plan.outputs.publish_tag != ''
+        run: |
+          tag="${{ steps.plan.outputs.publish_tag }}"
+          ver="${{ steps.plan.outputs.cargo_version }}"
+          if [[ "${{ steps.plan.outputs.create }}" == "true" ]]; then
+            gh release create "$tag" --title "Logon Doctor $ver" --notes-file dist/RELEASE_NOTES.md --verify-tag
+          elif [[ -z "$(gh release view "$tag" --json body --jq '.body')" ]]; then
+            # Keep anything typed into the release by hand; fill in the changelog otherwise.
+            gh release edit "$tag" --notes-file dist/RELEASE_NOTES.md
+          fi
+          gh release upload "$tag" dist/logon-doctor.exe dist/SHA256SUMS.txt --clobber
+          echo "Published logon-doctor $ver to release $tag"
